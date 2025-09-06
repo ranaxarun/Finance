@@ -1,154 +1,246 @@
 import yfinance as yf
 import pandas as pd
-import ta
-import requests
-from concurrent.futures import ThreadPoolExecutor, as_completed
+import numpy as np
+import time
+from datetime import datetime, timedelta
 
+def get_top_50_stocks():
+    """Get top 50 US stocks by market cap"""
+    top_50_stocks = [
+        'AAPL', 'MSFT', 'GOOGL', 'AMZN', 'NVDA', 'META', 'TSLA', 'BRK-B', 'UNH', 'JNJ',
+        'XOM', 'V', 'JPM', 'WMT', 'PG', 'MA', 'CVX', 'HD', 'LLY', 'ABBV',
+        'AVGO', 'PEP', 'KO', 'MRK', 'BAC', 'PFE', 'TMO', 'COST', 'DIS', 'CSCO',
+        'DHR', 'VZ', 'ADBE', 'ABT', 'ACN', 'CMCSA', 'NFLX', 'WFC', 'CRM', 'NKE',
+        'PM', 'LIN', 'RTX', 'T', 'HON', 'QCOM', 'AMD', 'INTU', 'AMGN', 'IBM',
+        'ASML', 'NVO', 'MU', 'PLTR', 'RDDT','BABA','UBER','DASH'
 
-# -------------------------------
-# Step 1: Get S&P 500 Tickers
-# -------------------------------
-def get_sp500_tickers():
-    url = "https://en.wikipedia.org/wiki/List_of_S%26P_500_companies"
-    headers = {
-        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
-                      "AppleWebKit/537.36 (KHTML, like Gecko) "
-                      "Chrome/115.0 Safari/537.36"
-    }
+    ]
+    return top_50_stocks
 
-    response = requests.get(url, headers=headers)
-    response.raise_for_status()
+def calculate_ema(data, period):
+    """Calculate Exponential Moving Average"""
+    return data.ewm(span=period, adjust=False).mean()
 
-    tables = pd.read_html(response.text)
-    df = tables[0]
-    return df['Symbol'].tolist()
+def calculate_rsi(data, period=14):
+    """Calculate RSI indicator"""
+    delta = data.diff()
+    gain = (delta.where(delta > 0, 0)).rolling(window=period).mean()
+    loss = (-delta.where(delta < 0, 0)).rolling(window=period).mean()
+    rs = gain / loss
+    rsi = 100 - (100 / (1 + rs))
+    return rsi
 
+def calculate_adx(high, low, close, period=14):
+    """Calculate Average Directional Index (ADX)"""
+    # Calculate True Range
+    tr1 = high - low
+    tr2 = abs(high - close.shift())
+    tr3 = abs(low - close.shift())
+    tr = pd.concat([tr1, tr2, tr3], axis=1).max(axis=1)
+    
+    # Calculate Directional Movement
+    up_move = high - high.shift()
+    down_move = low.shift() - low
+    
+    plus_dm = np.where((up_move > down_move) & (up_move > 0), up_move, 0)
+    minus_dm = np.where((down_move > up_move) & (down_move > 0), down_move, 0)
+    
+    # Calculate smoothed values
+    tr_smooth = tr.rolling(window=period).mean()
+    plus_dm_smooth = pd.Series(plus_dm, index=high.index).rolling(window=period).mean()
+    minus_dm_smooth = pd.Series(minus_dm, index=high.index).rolling(window=period).mean()
+    
+    # Calculate Directional Indicators
+    plus_di = 100 * (plus_dm_smooth / tr_smooth)
+    minus_di = 100 * (minus_dm_smooth / tr_smooth)
+    
+    # Calculate DX and ADX
+    dx = 100 * (abs(plus_di - minus_di) / (plus_di + minus_di))
+    adx = dx.rolling(window=period).mean()
+    
+    return adx, plus_di, minus_di
 
-# -------------------------------
-# Step 2: Worker function
-# -------------------------------
-def process_ticker(ticker):
+def calculate_relative_strength(stock_data, spy_data):
+    """Calculate Relative Strength Ratio (Stock vs SPY)"""
+    stock_returns = stock_data['Close'].pct_change()
+    spy_returns = spy_data['Close'].pct_change()
+    
+    # Calculate relative strength (stock performance vs SPY)
+    relative_strength = (1 + stock_returns) / (1 + spy_returns)
+    relative_strength = relative_strength.cumprod()
+    
+    return relative_strength
+
+def check_spy_above_ema200():
+    """Check if SPY is above its 200-EMA on daily timeframe"""
     try:
-        # --- 15m data ---
-        data_15m = yf.download(
-            ticker, interval="15m", period="20d", progress=False, auto_adjust=False
-        )
-        if data_15m.empty:
-            return None
-
-        close_15m = data_15m["Close"].squeeze()
-        volume_15m = data_15m["Volume"].squeeze()
-
-        # EMAs
-        data_15m["EMA20"] = ta.trend.EMAIndicator(close_15m, window=20).ema_indicator()
-        data_15m["EMA50"] = ta.trend.EMAIndicator(close_15m, window=50).ema_indicator()
-        data_15m["EMA200"] = ta.trend.EMAIndicator(close_15m, window=200).ema_indicator()
-
-        # RSI
-        data_15m["RSI"] = ta.momentum.RSIIndicator(close_15m, window=14).rsi()
-
-        last_close_15m = close_15m.iloc[-1]
-        last_ema20_15m = data_15m["EMA20"].iloc[-1]
-        last_ema50_15m = data_15m["EMA50"].iloc[-1]
-        last_ema200_15m = data_15m["EMA200"].iloc[-1]
-        last_rsi = data_15m["RSI"].iloc[-1]
-
-        # Condition A: Price > EMA20 > EMA50 > EMA200
-        condition_15m = last_close_15m > last_ema20_15m > last_ema50_15m > last_ema200_15m
-        if not condition_15m:
-            return None
-
-        # Buying Pressure: Latest volume > 20-period average volume
-        avg_vol = volume_15m.rolling(window=20).mean().iloc[-1]
-        last_vol = volume_15m.iloc[-1]
-        condition_volume = last_vol > avg_vol
-        if not condition_volume:
-            return None
-
-        # RSI Filter: RSI > 55
-        condition_rsi = last_rsi > 55
-        if not condition_rsi:
-            return None
-
-        # --- 1h data ---
-        data_1h = yf.download(
-            ticker, interval="1h", period="200d", progress=False, auto_adjust=False
-        )
-        if data_1h.empty:
-            return None
-
-        close_1h = data_1h["Close"].squeeze()
-        data_1h["EMA50"] = ta.trend.EMAIndicator(close_1h, window=50).ema_indicator()
-        data_1h["EMA200"] = ta.trend.EMAIndicator(close_1h, window=200).ema_indicator()
-
-        last_ema50_1h = data_1h["EMA50"].iloc[-1]
-        last_ema200_1h = data_1h["EMA200"].iloc[-1]
-
-        # Condition B: 1h EMA50 > EMA200
-        condition_1h = last_ema50_1h > last_ema200_1h
-
-        if condition_15m and condition_volume and condition_rsi and condition_1h:
-            return (
-                ticker,
-                last_close_15m,
-                last_ema20_15m,
-                last_ema50_15m,
-                last_ema200_15m,
-                last_vol,
-                avg_vol,
-                last_rsi,
-                last_ema50_1h,
-                last_ema200_1h,
-            )
-
+        spy = yf.Ticker('SPY')
+        spy_data = spy.history(period='300d', interval='1d')
+        
+        if len(spy_data) < 200:
+            return False
+        
+        spy_data['EMA200'] = calculate_ema(spy_data['Close'], 200)
+        latest = spy_data.iloc[-1]
+        
+        return latest['Close'] > latest['EMA200']
+        
     except Exception as e:
-        print(f"Error with {ticker}: {e}")
-    return None
+        print(f"Error checking SPY condition: {e}")
+        return False
 
+def check_15m_conditions(ticker_symbol, spy_data):
+    """Check 15-minute timeframe conditions"""
+    try:
+        # Get 15-minute data for the last 30 days
+        stock = yf.Ticker(ticker_symbol)
+        data_15m = stock.history(period='30d', interval='15m')
+        
+        if len(data_15m) < 100:
+            return False, None, None, None
+        
+        # Calculate indicators
+        data_15m['EMA20'] = calculate_ema(data_15m['Close'], 20)
+        data_15m['EMA50'] = calculate_ema(data_15m['Close'], 50)
+        data_15m['EMA200'] = calculate_ema(data_15m['Close'], 200)
+        data_15m['Volume_MA20'] = data_15m['Volume'].rolling(window=20).mean()
+        data_15m['RSI'] = calculate_rsi(data_15m['Close'], 14)
+        
+        # Calculate ADX
+        data_15m['ADX'], _, _ = calculate_adx(data_15m['High'], data_15m['Low'], data_15m['Close'], 14)
+        
+        # Calculate Relative Strength
+        relative_strength = calculate_relative_strength(data_15m, spy_data)
+        
+        # Get latest values
+        latest = data_15m.iloc[-1]
+        latest_rs = relative_strength.iloc[-1] if not relative_strength.empty else 0
+        
+        # Check conditions
+        price_ema_condition = (latest['Close'] > latest['EMA20'] > latest['EMA50'] > latest['EMA200'])
+        volume_condition = latest['Volume'] > latest['Volume_MA20']
+        rsi_condition = latest['RSI'] > 55
+        adx_condition = latest['ADX'] > 25 if pd.notna(latest['ADX']) else False
+        
+        conditions_met = price_ema_condition and volume_condition and rsi_condition and adx_condition
+        
+        return conditions_met, latest_rs, latest['ADX'], latest['RSI']
+        
+    except Exception as e:
+        print(f"Error processing {ticker_symbol} for 15m: {e}")
+        return False, None, None, None
 
-# -------------------------------
-# Step 3: Run Multi-threaded Scan
-# -------------------------------
-def check_stocks_multi_tf():
-    tickers = get_sp500_tickers()
-    results = []
+def check_1h_conditions(ticker_symbol):
+    """Check 1-hour timeframe conditions"""
+    try:
+        # Get 1-hour data for the last 60 days
+        stock = yf.Ticker(ticker_symbol)
+        data_1h = stock.history(period='60d', interval='1h')
+        
+        if len(data_1h) < 100:
+            return False
+        
+        # Calculate indicators
+        data_1h['EMA50'] = calculate_ema(data_1h['Close'], 50)
+        data_1h['EMA200'] = calculate_ema(data_1h['Close'], 200)
+        
+        # Get latest values
+        latest = data_1h.iloc[-1]
+        
+        # Check condition
+        return latest['EMA50'] > latest['EMA200']
+        
+    except Exception as e:
+        print(f"Error processing {ticker_symbol} for 1h: {e}")
+        return False
 
-    with ThreadPoolExecutor(max_workers=20) as executor:
-        futures = {executor.submit(process_ticker, t): t for t in tickers}
-        for future in as_completed(futures):
-            res = future.result()
-            if res:
-                results.append(res)
+def analyze_stocks():
+    """Main function to analyze stocks"""
+    print("Fetching top 50 stocks...")
+    stocks = get_top_50_stocks()
+    
+    print("Checking SPY condition...")
+    spy_condition = check_spy_above_ema200()
+    if not spy_condition:
+        print("❌ SPY is not above its 200-EMA. Market condition not favorable.")
+        return []
+    
+    print("✓ SPY is above its 200-EMA. Proceeding with analysis...")
+    
+    # Get SPY data for relative strength calculation
+    spy = yf.Ticker('SPY')
+    spy_data_15m = spy.history(period='30d', interval='15m')
+    
+    qualifying_stocks = []
+    stock_details = []
+    
+    print("Analyzing stocks...")
+    for i, ticker in enumerate(stocks, 1):
+        print(f"Processing {ticker} ({i}/{len(stocks)})...")
+        
+        # Check both timeframe conditions
+        condition_15m, rel_strength, adx_value, rsi_value = check_15m_conditions(ticker, spy_data_15m)
+        condition_1h = check_1h_conditions(ticker)
+        
+        if condition_15m and condition_1h:
+            qualifying_stocks.append(ticker)
+            stock_details.append({
+                'ticker': ticker,
+                'relative_strength': rel_strength,
+                'adx': adx_value,
+                'rsi': rsi_value
+            })
+            print(f"✓ {ticker} qualifies! RS: {rel_strength:.3f}, ADX: {adx_value:.1f}, RSI: {rsi_value:.1f}")
+        
+        # Add delay to avoid rate limiting
+        time.sleep(0.5)
+    
+    # Sort by relative strength (descending)
+    if stock_details:
+        stock_details.sort(key=lambda x: x['relative_strength'], reverse=True)
+        qualifying_stocks = [stock['ticker'] for stock in stock_details]
+    
+    return qualifying_stocks, stock_details
 
-    return results
+def main():
+    """Main execution function"""
+    print("Stock Screening Tool")
+    print("=" * 60)
+    print("Filters:")
+    print("- Market: SPY > EMA200 (Daily)")
+    print("- 15m: Price > EMA20 > EMA50 > EMA200, Volume > 20MA, RSI(14) > 55, ADX > 25")
+    print("- 1h: EMA50 > EMA200")
+    print("- Relative Strength Ratio (vs SPY)")
+    print("=" * 60)
+    
+    start_time = datetime.now()
+    results, details = analyze_stocks()
+    
+    print("\n" + "=" * 60)
+    print("SCREENING RESULTS")
+    print("=" * 60)
+    
+    if results:
+        print(f"Qualifying stocks ({len(results)}):")
+        print("\n{:<8} {:<15} {:<10} {:<8} {:<8}".format(
+            "Rank", "Ticker", "Rel Strength", "ADX", "RSI"
+        ))
+        print("-" * 50)
+        
+        for i, stock_info in enumerate(details, 1):
+            print("{:<8} {:<15} {:<10.3f} {:<8.1f} {:<8.1f}".format(
+                f"#{i}", 
+                stock_info['ticker'], 
+                stock_info['relative_strength'],
+                stock_info['adx'],
+                stock_info['rsi']
+            ))
+    else:
+        print("No stocks meet all the criteria.")
+    
+    end_time = datetime.now()
+    duration = end_time - start_time
+    print(f"\nAnalysis completed in {duration.total_seconds():.2f} seconds")
 
-
-# -------------------------------
-# Step 4: Main
-# -------------------------------
 if __name__ == "__main__":
-    stocks = check_stocks_multi_tf()
-    print("Stocks matching conditions:")
-    print(" (15m: Price > EMA20 > EMA50 > EMA200) "
-          "AND (Volume > 20-period avg) "
-          "AND (RSI > 55) "
-          "AND (1h: EMA50 > EMA200)\n")
-
-    for s in stocks:
-        print(
-            f"{s[0]} → Price: {s[1]:.2f}, 15m_EMA20: {s[2]:.2f}, "
-            f"15m_EMA50: {s[3]:.2f}, 15m_EMA200: {s[4]:.2f}, "
-            f"LastVol: {s[5]:.0f}, AvgVol20: {s[6]:.0f}, RSI: {s[7]:.2f}, "
-            f"1h_EMA50: {s[8]:.2f}, 1h_EMA200: {s[9]:.2f}"
-        )
-
-    # Save to CSV
-    pd.DataFrame(
-        stocks,
-        columns=[
-            "Ticker", "Price", "15m_EMA20", "15m_EMA50", "15m_EMA200",
-            "LastVol", "AvgVol20", "RSI", "1h_EMA50", "1h_EMA200"
-        ]
-    ).to_csv("stocks_multi_tf_buying_pressure_rsi.csv", index=False)
-
-    print("\n✅ Results saved to stocks_multi_tf_buying_pressure_rsi.csv")
+    main()
