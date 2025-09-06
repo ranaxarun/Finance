@@ -7,7 +7,7 @@ from datetime import datetime, timedelta
 def get_top_50_stocks():
     """Get top 50 US stocks by market cap"""
     top_50_stocks = [
-        'AAPL', 'MSFT', 'GOOGL', 'AMZN', 'NVDA', 'META', 'TSLA', 'BRK-B', 'UNH', 'JNJ',
+       'AAPL', 'MSFT', 'GOOGL', 'AMZN', 'NVDA', 'META', 'TSLA', 'BRK-B', 'UNH', 'JNJ',
         'XOM', 'V', 'JPM', 'WMT', 'PG', 'MA', 'CVX', 'HD', 'LLY', 'ABBV',
         'AVGO', 'PEP', 'KO', 'MRK', 'BAC', 'PFE', 'TMO', 'COST', 'DIS', 'CSCO',
         'DHR', 'VZ', 'ADBE', 'ABT', 'ACN', 'CMCSA', 'NFLX', 'WFC', 'CRM', 'NKE',
@@ -29,6 +29,32 @@ def calculate_rsi(data, period=14):
     rs = gain / loss
     rsi = 100 - (100 / (1 + rs))
     return rsi
+
+def calculate_stochastic(high, low, close, k_period=14, d_period=3):
+    """Calculate Stochastic Oscillator"""
+    # Calculate %K line
+    lowest_low = low.rolling(window=k_period).min()
+    highest_high = high.rolling(window=k_period).max()
+    
+    k_line = 100 * ((close - lowest_low) / (highest_high - lowest_low))
+    
+    # Calculate %D line (signal line) - SMA of %K
+    d_line = k_line.rolling(window=d_period).mean()
+    
+    return k_line, d_line
+
+def check_stochastic_cross(k_line, d_line):
+    """Check if %K line crosses above %D line"""
+    if len(k_line) < 2 or len(d_line) < 2:
+        return False
+    
+    # Check if current %K > %D and previous %K <= %D
+    current_k = k_line.iloc[-1]
+    current_d = d_line.iloc[-1]
+    prev_k = k_line.iloc[-2]
+    prev_d = d_line.iloc[-2]
+    
+    return (current_k > current_d) and (prev_k <= prev_d)
 
 def calculate_adx(high, low, close, period=14):
     """Calculate Average Directional Index (ADX)"""
@@ -97,7 +123,7 @@ def check_15m_conditions(ticker_symbol, spy_data):
         data_15m = stock.history(period='30d', interval='15m')
         
         if len(data_15m) < 100:
-            return False, None, None, None
+            return False, None, None, None, None, None
         
         # Calculate indicators
         data_15m['EMA20'] = calculate_ema(data_15m['Close'], 20)
@@ -109,6 +135,11 @@ def check_15m_conditions(ticker_symbol, spy_data):
         # Calculate ADX
         data_15m['ADX'], _, _ = calculate_adx(data_15m['High'], data_15m['Low'], data_15m['Close'], 14)
         
+        # Calculate Stochastic
+        k_line, d_line = calculate_stochastic(data_15m['High'], data_15m['Low'], data_15m['Close'])
+        data_15m['Stoch_K'] = k_line
+        data_15m['Stoch_D'] = d_line
+        
         # Calculate Relative Strength
         relative_strength = calculate_relative_strength(data_15m, spy_data)
         
@@ -119,16 +150,19 @@ def check_15m_conditions(ticker_symbol, spy_data):
         # Check conditions
         price_ema_condition = (latest['Close'] > latest['EMA20'] > latest['EMA50'] > latest['EMA200'])
         volume_condition = latest['Volume'] > latest['Volume_MA20']
-        rsi_condition = latest['RSI'] > 55
+        rsi_condition = latest['RSI'] > 55 if pd.notna(latest['RSI']) else False
         adx_condition = latest['ADX'] > 25 if pd.notna(latest['ADX']) else False
+        stoch_condition = check_stochastic_cross(data_15m['Stoch_K'], data_15m['Stoch_D'])
         
-        conditions_met = price_ema_condition and volume_condition and rsi_condition and adx_condition
+        conditions_met = (price_ema_condition and volume_condition and 
+                         rsi_condition and adx_condition and stoch_condition)
         
-        return conditions_met, latest_rs, latest['ADX'], latest['RSI']
+        return (conditions_met, latest_rs, latest['ADX'], latest['RSI'], 
+                latest['Stoch_K'], latest['Stoch_D'])
         
     except Exception as e:
         print(f"Error processing {ticker_symbol} for 15m: {e}")
-        return False, None, None, None
+        return False, None, None, None, None, None
 
 def check_1h_conditions(ticker_symbol):
     """Check 1-hour timeframe conditions"""
@@ -179,7 +213,8 @@ def analyze_stocks():
         print(f"Processing {ticker} ({i}/{len(stocks)})...")
         
         # Check both timeframe conditions
-        condition_15m, rel_strength, adx_value, rsi_value = check_15m_conditions(ticker, spy_data_15m)
+        (condition_15m, rel_strength, adx_value, rsi_value, 
+         stoch_k, stoch_d) = check_15m_conditions(ticker, spy_data_15m)
         condition_1h = check_1h_conditions(ticker)
         
         if condition_15m and condition_1h:
@@ -188,9 +223,12 @@ def analyze_stocks():
                 'ticker': ticker,
                 'relative_strength': rel_strength,
                 'adx': adx_value,
-                'rsi': rsi_value
+                'rsi': rsi_value,
+                'stoch_k': stoch_k,
+                'stoch_d': stoch_d
             })
-            print(f"✓ {ticker} qualifies! RS: {rel_strength:.3f}, ADX: {adx_value:.1f}, RSI: {rsi_value:.1f}")
+            print(f"✓ {ticker} qualifies! RS: {rel_strength:.3f}, ADX: {adx_value:.1f}, "
+                  f"RSI: {rsi_value:.1f}, Stoch: K={stoch_k:.1f}/D={stoch_d:.1f}")
         
         # Add delay to avoid rate limiting
         time.sleep(0.5)
@@ -205,36 +243,42 @@ def analyze_stocks():
 def main():
     """Main execution function"""
     print("Stock Screening Tool")
-    print("=" * 60)
+    print("=" * 70)
     print("Filters:")
     print("- Market: SPY > EMA200 (Daily)")
     print("- 15m: Price > EMA20 > EMA50 > EMA200, Volume > 20MA, RSI(14) > 55, ADX > 25")
+    print("- 15m: Stochastic %K crosses above %D")
     print("- 1h: EMA50 > EMA200")
     print("- Relative Strength Ratio (vs SPY)")
-    print("=" * 60)
+    print("=" * 70)
     
     start_time = datetime.now()
     results, details = analyze_stocks()
     
-    print("\n" + "=" * 60)
+    print("\n" + "=" * 70)
     print("SCREENING RESULTS")
-    print("=" * 60)
+    print("=" * 70)
     
     if results:
         print(f"Qualifying stocks ({len(results)}):")
-        print("\n{:<8} {:<15} {:<10} {:<8} {:<8}".format(
-            "Rank", "Ticker", "Rel Strength", "ADX", "RSI"
+        print("\n{:<8} {:<8} {:<12} {:<8} {:<8} {:<12} {:<12}".format(
+            "Rank", "Ticker", "Rel Strength", "ADX", "RSI", "Stoch %K", "Stoch %D"
         ))
-        print("-" * 50)
+        print("-" * 70)
         
         for i, stock_info in enumerate(details, 1):
-            print("{:<8} {:<15} {:<10.3f} {:<8.1f} {:<8.1f}".format(
+            print("{:<8} {:<8} {:<12.3f} {:<8.1f} {:<8.1f} {:<12.1f} {:<12.1f}".format(
                 f"#{i}", 
                 stock_info['ticker'], 
                 stock_info['relative_strength'],
                 stock_info['adx'],
-                stock_info['rsi']
+                stock_info['rsi'],
+                stock_info['stoch_k'],
+                stock_info['stoch_d']
             ))
+            
+        print("\n💡 Stochastic Cross: Bullish signal when %K (blue) crosses above %D (red)")
+        
     else:
         print("No stocks meet all the criteria.")
     
