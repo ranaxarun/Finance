@@ -17,7 +17,7 @@ TICKERS = [
     
     ]
 PERIOD = "YTD"
-INTERVAL = "1d"
+INTERVAL = "4h"
 MIN_DISTANCE = 5  # Minimum distance between swing points
 WINDOW_SIZE = 20  # Window for local maxima/minima detection
 SUPPORT_RESISTANCE_TOLERANCE = 0.02  # 2% tolerance for level clustering
