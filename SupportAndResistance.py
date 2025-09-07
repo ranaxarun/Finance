@@ -16,7 +16,7 @@ TICKERS = [
 
     
     ]
-PERIOD = "6mo"
+PERIOD = "YTD"
 INTERVAL = "1d"
 MIN_DISTANCE = 5  # Minimum distance between swing points
 WINDOW_SIZE = 20  # Window for local maxima/minima detection
