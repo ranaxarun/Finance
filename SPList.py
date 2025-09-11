@@ -11,9 +11,7 @@ def get_top_50_stocks():
         'XOM', 'V', 'JPM', 'WMT', 'PG', 'MA', 'CVX', 'HD', 'LLY', 'ABBV',
         'AVGO', 'PEP', 'KO', 'MRK', 'BAC', 'PFE', 'TMO', 'COST', 'DIS', 'CSCO',
         'DHR', 'VZ', 'ADBE', 'ABT', 'ACN', 'CMCSA', 'NFLX', 'WFC', 'CRM', 'NKE',
-        'PM', 'LIN', 'RTX', 'T', 'HON', 'QCOM', 'AMD', 'INTU', 'AMGN', 'IBM',
-        'ASML', 'NVO', 'MU', 'PLTR', 'RDDT','BABA','UBER','DASH'
-
+        'PM', 'LIN', 'RTX', 'T', 'HON', 'QCOM', 'AMD', 'INTU', 'AMGN', 'IBM'
     ]
     return top_50_stocks
 
@@ -29,6 +27,22 @@ def calculate_rsi(data, period=14):
     rs = gain / loss
     rsi = 100 - (100 / (1 + rs))
     return rsi
+
+def is_rsi_rising(rsi_series, lookback=3):
+    """Check if RSI is rising over the specified lookback period"""
+    if len(rsi_series) < lookback + 1:
+        return False
+    
+    # Get recent RSI values
+    recent_rsi = rsi_series.iloc[-lookback:]
+    
+    # Check if RSI is consistently rising
+    rising = all(recent_rsi.iloc[i] > recent_rsi.iloc[i-1] for i in range(1, len(recent_rsi)))
+    
+    # Alternative: Check if current RSI is higher than previous period
+    # rising = rsi_series.iloc[-1] > rsi_series.iloc[-2]
+    
+    return rising
 
 def calculate_stochastic(high, low, close, k_period=14, d_period=3):
     """Calculate Stochastic Oscillator"""
@@ -123,7 +137,7 @@ def check_15m_conditions(ticker_symbol, spy_data):
         data_15m = stock.history(period='30d', interval='15m')
         
         if len(data_15m) < 100:
-            return False, None, None, None, None, None
+            return False, None, None, None, None, None, None
         
         # Calculate indicators
         data_15m['EMA20'] = calculate_ema(data_15m['Close'], 20)
@@ -147,22 +161,31 @@ def check_15m_conditions(ticker_symbol, spy_data):
         latest = data_15m.iloc[-1]
         latest_rs = relative_strength.iloc[-1] if not relative_strength.empty else 0
         
-        # Check conditions
+        # Check RSI condition (RSI > 55 AND rising)
+        rsi_above_55 = latest['RSI'] > 55 if pd.notna(latest['RSI']) else False
+        rsi_rising = is_rsi_rising(data_15m['RSI'], lookback=3)
+        rsi_condition = rsi_above_55 and rsi_rising
+        
+        # Check other conditions
         price_ema_condition = (latest['Close'] > latest['EMA20'] > latest['EMA50'] > latest['EMA200'])
         volume_condition = latest['Volume'] > latest['Volume_MA20']
-        rsi_condition = latest['RSI'] > 55 if pd.notna(latest['RSI']) else False
         adx_condition = latest['ADX'] > 25 if pd.notna(latest['ADX']) else False
-        stoch_condition = check_stochastic_cross(data_15m['Stoch_K'], data_15m['Stoch_D'])
+       # stoch_condition = check_stochastic_cross(data_15m['Stoch_K'], data_15m['Stoch_D'])
         
         conditions_met = (price_ema_condition and volume_condition and 
-                         rsi_condition and adx_condition and stoch_condition)
+                         rsi_condition and adx_condition #and stoch_condition
+        )
+        
+        # Get previous RSI for trend display
+        prev_rsi = data_15m['RSI'].iloc[-2] if len(data_15m['RSI']) > 1 else None
+        rsi_trend = "↑" if rsi_rising else "↓" if prev_rsi and latest['RSI'] < prev_rsi else "→"
         
         return (conditions_met, latest_rs, latest['ADX'], latest['RSI'], 
-                latest['Stoch_K'], latest['Stoch_D'])
+                latest['Stoch_K'], latest['Stoch_D'], rsi_trend)
         
     except Exception as e:
         print(f"Error processing {ticker_symbol} for 15m: {e}")
-        return False, None, None, None, None, None
+        return False, None, None, None, None, None, None
 
 def check_1h_conditions(ticker_symbol):
     """Check 1-hour timeframe conditions"""
@@ -214,7 +237,7 @@ def analyze_stocks():
         
         # Check both timeframe conditions
         (condition_15m, rel_strength, adx_value, rsi_value, 
-         stoch_k, stoch_d) = check_15m_conditions(ticker, spy_data_15m)
+         stoch_k, stoch_d, rsi_trend) = check_15m_conditions(ticker, spy_data_15m)
         condition_1h = check_1h_conditions(ticker)
         
         if condition_15m and condition_1h:
@@ -225,10 +248,11 @@ def analyze_stocks():
                 'adx': adx_value,
                 'rsi': rsi_value,
                 'stoch_k': stoch_k,
-                'stoch_d': stoch_d
+                'stoch_d': stoch_d,
+                'rsi_trend': rsi_trend
             })
             print(f"✓ {ticker} qualifies! RS: {rel_strength:.3f}, ADX: {adx_value:.1f}, "
-                  f"RSI: {rsi_value:.1f}, Stoch: K={stoch_k:.1f}/D={stoch_d:.1f}")
+                  f"RSI: {rsi_value:.1f}{rsi_trend}, Stoch: K={stoch_k:.1f}/D={stoch_d:.1f}")
         
         # Add delay to avoid rate limiting
         time.sleep(0.5)
@@ -243,41 +267,44 @@ def analyze_stocks():
 def main():
     """Main execution function"""
     print("Stock Screening Tool")
-    print("=" * 70)
+    print("=" * 75)
     print("Filters:")
     print("- Market: SPY > EMA200 (Daily)")
-    print("- 15m: Price > EMA20 > EMA50 > EMA200, Volume > 20MA, RSI(14) > 55, ADX > 25")
+    print("- 15m: Price > EMA20 > EMA50 > EMA200, Volume > 20MA")
+    print("- 15m: RSI(14) > 55 AND Rising, ADX > 25")
     print("- 15m: Stochastic %K crosses above %D")
     print("- 1h: EMA50 > EMA200")
     print("- Relative Strength Ratio (vs SPY)")
-    print("=" * 70)
+    print("=" * 75)
     
     start_time = datetime.now()
     results, details = analyze_stocks()
     
-    print("\n" + "=" * 70)
+    print("\n" + "=" * 75)
     print("SCREENING RESULTS")
-    print("=" * 70)
+    print("=" * 75)
     
     if results:
         print(f"Qualifying stocks ({len(results)}):")
-        print("\n{:<8} {:<8} {:<12} {:<8} {:<8} {:<12} {:<12}".format(
+        print("\n{:<8} {:<8} {:<12} {:<8} {:<10} {:<12} {:<12}".format(
             "Rank", "Ticker", "Rel Strength", "ADX", "RSI", "Stoch %K", "Stoch %D"
         ))
-        print("-" * 70)
+        print("-" * 75)
         
         for i, stock_info in enumerate(details, 1):
-            print("{:<8} {:<8} {:<12.3f} {:<8.1f} {:<8.1f} {:<12.1f} {:<12.1f}".format(
+            print("{:<8} {:<8} {:<12.3f} {:<8.1f} {:<10} {:<12.1f} {:<12.1f}".format(
                 f"#{i}", 
                 stock_info['ticker'], 
                 stock_info['relative_strength'],
                 stock_info['adx'],
-                stock_info['rsi'],
+                f"{stock_info['rsi']:.1f}{stock_info['rsi_trend']}",
                 stock_info['stoch_k'],
                 stock_info['stoch_d']
             ))
             
-        print("\n💡 Stochastic Cross: Bullish signal when %K (blue) crosses above %D (red)")
+        print("\n💡 Key:")
+        print("   RSI Trend: ↑ = Rising, ↓ = Falling, → = Flat")
+        print("   Stochastic Cross: Bullish when %K crosses above %D")
         
     else:
         print("No stocks meet all the criteria.")
