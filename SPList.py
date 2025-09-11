@@ -11,15 +11,25 @@ def get_top_50_stocks():
         'XOM', 'V', 'JPM', 'WMT', 'PG', 'MA', 'CVX', 'HD', 'LLY', 'ABBV',
         'AVGO', 'PEP', 'KO', 'MRK', 'BAC', 'PFE', 'TMO', 'COST', 'DIS', 'CSCO',
         'DHR', 'VZ', 'ADBE', 'ABT', 'ACN', 'CMCSA', 'NFLX', 'WFC', 'CRM', 'NKE',
-        'PM', 'LIN', 'RTX', 'T', 'HON', 'QCOM', 'AMD', 'INTU', 'AMGN', 'IBM',
-        'ASML', 'NVO', 'MU', 'PLTR', 'RDDT','BABA','UBER','DASH','ORCL'
-
+        'PM', 'LIN', 'RTX', 'T', 'HON', 'QCOM', 'AMD', 'INTU', 'AMGN', 'IBM'
     ]
     return top_50_stocks
 
 def calculate_ema(data, period):
     """Calculate Exponential Moving Average"""
     return data.ewm(span=period, adjust=False).mean()
+
+def calculate_atr(high, low, close, period=14):
+    """Calculate Average True Range (ATR) for volatility measurement"""
+    # Calculate True Range
+    tr1 = high - low
+    tr2 = abs(high - close.shift())
+    tr3 = abs(low - close.shift())
+    tr = pd.concat([tr1, tr2, tr3], axis=1).max(axis=1)
+    
+    # Calculate ATR
+    atr = tr.rolling(window=period).mean()
+    return atr
 
 def calculate_rsi(data, period=14):
     """Calculate RSI indicator"""
@@ -40,9 +50,6 @@ def is_rsi_rising(rsi_series, lookback=3):
     
     # Check if RSI is consistently rising
     rising = all(recent_rsi.iloc[i] > recent_rsi.iloc[i-1] for i in range(1, len(recent_rsi)))
-    
-    # Alternative: Check if current RSI is higher than previous period
-    # rising = rsi_series.iloc[-1] > rsi_series.iloc[-2]
     
     return rising
 
@@ -139,7 +146,7 @@ def check_15m_conditions(ticker_symbol, spy_data):
         data_15m = stock.history(period='30d', interval='15m')
         
         if len(data_15m) < 100:
-            return False, None, None, None, None, None, None
+            return False, None, None, None, None, None, None, None
         
         # Calculate indicators
         data_15m['EMA20'] = calculate_ema(data_15m['Close'], 20)
@@ -150,6 +157,12 @@ def check_15m_conditions(ticker_symbol, spy_data):
         
         # Calculate ADX
         data_15m['ADX'], _, _ = calculate_adx(data_15m['High'], data_15m['Low'], data_15m['Close'], 14)
+        
+        # Calculate ATR for volatility
+        data_15m['ATR'] = calculate_atr(data_15m['High'], data_15m['Low'], data_15m['Close'], 14)
+        
+        # Calculate ATR as percentage of price (normalized volatility)
+        data_15m['ATR_Pct'] = (data_15m['ATR'] / data_15m['Close']) * 100
         
         # Calculate Stochastic
         k_line, d_line = calculate_stochastic(data_15m['High'], data_15m['Low'], data_15m['Close'])
@@ -168,26 +181,32 @@ def check_15m_conditions(ticker_symbol, spy_data):
         rsi_rising = is_rsi_rising(data_15m['RSI'], lookback=3)
         rsi_condition = rsi_above_55 and rsi_rising
         
+        # Check volatility condition (ATR < 2% of price - adjustable threshold)
+        # Lower ATR% means lower volatility
+        volatility_condition = latest['ATR_Pct'] < 2.0 if pd.notna(latest['ATR_Pct']) else False
+        
         # Check other conditions
         price_ema_condition = (latest['Close'] > latest['EMA20'] > latest['EMA50'] > latest['EMA200'])
         volume_condition = latest['Volume'] > latest['Volume_MA20']
         adx_condition = latest['ADX'] > 25 if pd.notna(latest['ADX']) else False
-       # stoch_condition = check_stochastic_cross(data_15m['Stoch_K'], data_15m['Stoch_D'])
+      #  stoch_condition = check_stochastic_cross(data_15m['Stoch_K'], data_15m['Stoch_D'])
         
         conditions_met = (price_ema_condition and volume_condition and 
-                         rsi_condition and adx_condition #and stoch_condition
-        )
+                         rsi_condition and adx_condition 
+                      #   and stoch_condition
+                           and
+                         volatility_condition)
         
         # Get previous RSI for trend display
         prev_rsi = data_15m['RSI'].iloc[-2] if len(data_15m['RSI']) > 1 else None
         rsi_trend = "↑" if rsi_rising else "↓" if prev_rsi and latest['RSI'] < prev_rsi else "→"
         
         return (conditions_met, latest_rs, latest['ADX'], latest['RSI'], 
-                latest['Stoch_K'], latest['Stoch_D'], rsi_trend)
+                latest['Stoch_K'], latest['Stoch_D'], rsi_trend, latest['ATR_Pct'])
         
     except Exception as e:
         print(f"Error processing {ticker_symbol} for 15m: {e}")
-        return False, None, None, None, None, None, None
+        return False, None, None, None, None, None, None, None
 
 def check_1h_conditions(ticker_symbol):
     """Check 1-hour timeframe conditions"""
@@ -239,7 +258,7 @@ def analyze_stocks():
         
         # Check both timeframe conditions
         (condition_15m, rel_strength, adx_value, rsi_value, 
-         stoch_k, stoch_d, rsi_trend) = check_15m_conditions(ticker, spy_data_15m)
+         stoch_k, stoch_d, rsi_trend, atr_pct) = check_15m_conditions(ticker, spy_data_15m)
         condition_1h = check_1h_conditions(ticker)
         
         if condition_15m and condition_1h:
@@ -251,10 +270,12 @@ def analyze_stocks():
                 'rsi': rsi_value,
                 'stoch_k': stoch_k,
                 'stoch_d': stoch_d,
-                'rsi_trend': rsi_trend
+                'rsi_trend': rsi_trend,
+                'atr_pct': atr_pct
             })
             print(f"✓ {ticker} qualifies! RS: {rel_strength:.3f}, ADX: {adx_value:.1f}, "
-                  f"RSI: {rsi_value:.1f}{rsi_trend}, Stoch: K={stoch_k:.1f}/D={stoch_d:.1f}")
+                  f"RSI: {rsi_value:.1f}{rsi_trend}, Stoch: K={stoch_k:.1f}/D={stoch_d:.1f}, "
+                  f"ATR%: {atr_pct:.2f}%")
         
         # Add delay to avoid rate limiting
         time.sleep(0.5)
@@ -269,44 +290,47 @@ def analyze_stocks():
 def main():
     """Main execution function"""
     print("Stock Screening Tool")
-    print("=" * 75)
+    print("=" * 80)
     print("Filters:")
     print("- Market: SPY > EMA200 (Daily)")
     print("- 15m: Price > EMA20 > EMA50 > EMA200, Volume > 20MA")
     print("- 15m: RSI(14) > 55 AND Rising, ADX > 25")
     print("- 15m: Stochastic %K crosses above %D")
+    print("- 15m: ATR% < 2.0 (Low Volatility Filter)")
     print("- 1h: EMA50 > EMA200")
     print("- Relative Strength Ratio (vs SPY)")
-    print("=" * 75)
+    print("=" * 80)
     
     start_time = datetime.now()
     results, details = analyze_stocks()
     
-    print("\n" + "=" * 75)
+    print("\n" + "=" * 80)
     print("SCREENING RESULTS")
-    print("=" * 75)
+    print("=" * 80)
     
     if results:
         print(f"Qualifying stocks ({len(results)}):")
-        print("\n{:<8} {:<8} {:<12} {:<8} {:<10} {:<12} {:<12}".format(
-            "Rank", "Ticker", "Rel Strength", "ADX", "RSI", "Stoch %K", "Stoch %D"
+        print("\n{:<8} {:<8} {:<12} {:<8} {:<10} {:<12} {:<12} {:<10}".format(
+            "Rank", "Ticker", "Rel Strength", "ADX", "RSI", "Stoch %K", "Stoch %D", "ATR %"
         ))
-        print("-" * 75)
+        print("-" * 80)
         
         for i, stock_info in enumerate(details, 1):
-            print("{:<8} {:<8} {:<12.3f} {:<8.1f} {:<10} {:<12.1f} {:<12.1f}".format(
+            print("{:<8} {:<8} {:<12.3f} {:<8.1f} {:<10} {:<12.1f} {:<12.1f} {:<10.2f}".format(
                 f"#{i}", 
                 stock_info['ticker'], 
                 stock_info['relative_strength'],
                 stock_info['adx'],
                 f"{stock_info['rsi']:.1f}{stock_info['rsi_trend']}",
                 stock_info['stoch_k'],
-                stock_info['stoch_d']
+                stock_info['stoch_d'],
+                stock_info['atr_pct']
             ))
             
         print("\n💡 Key:")
         print("   RSI Trend: ↑ = Rising, ↓ = Falling, → = Flat")
         print("   Stochastic Cross: Bullish when %K crosses above %D")
+        print("   ATR %: Lower values indicate lower volatility (<2% is good)")
         
     else:
         print("No stocks meet all the criteria.")
