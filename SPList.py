@@ -7,11 +7,13 @@ from datetime import datetime, timedelta
 def get_top_50_stocks():
     """Get top 50 US stocks by market cap"""
     top_50_stocks = [
-        'AAPL', 'MSFT', 'GOOGL', 'AMZN', 'NVDA', 'META', 'TSLA', 'BRK-B', 'UNH', 'JNJ',
+      'AAPL', 'MSFT', 'GOOGL', 'AMZN', 'NVDA', 'META', 'TSLA', 'BRK-B', 'UNH', 'JNJ',
         'XOM', 'V', 'JPM', 'WMT', 'PG', 'MA', 'CVX', 'HD', 'LLY', 'ABBV',
         'AVGO', 'PEP', 'KO', 'MRK', 'BAC', 'PFE', 'TMO', 'COST', 'DIS', 'CSCO',
         'DHR', 'VZ', 'ADBE', 'ABT', 'ACN', 'CMCSA', 'NFLX', 'WFC', 'CRM', 'NKE',
-        'PM', 'LIN', 'RTX', 'T', 'HON', 'QCOM', 'AMD', 'INTU', 'AMGN', 'IBM'
+        'PM', 'LIN', 'RTX', 'T', 'HON', 'QCOM', 'AMD', 'INTU', 'AMGN', 'IBM',
+        'ASML', 'NVO', 'MU', 'PLTR', 'RDDT','BABA','UBER','DASH','ORCL'
+
     ]
     return top_50_stocks
 
@@ -183,7 +185,7 @@ def check_15m_conditions(ticker_symbol, spy_data):
         
         # Check volatility condition (ATR < 2% of price - adjustable threshold)
         # Lower ATR% means lower volatility
-        volatility_condition = latest['ATR_Pct'] < 2.0 if pd.notna(latest['ATR_Pct']) else False
+        volatility_condition = latest['ATR_Pct'] < 3.0 if pd.notna(latest['ATR_Pct']) else False
         
         # Check other conditions
         price_ema_condition = (latest['Close'] > latest['EMA20'] > latest['EMA50'] > latest['EMA200'])
