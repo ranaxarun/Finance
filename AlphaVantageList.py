@@ -10,7 +10,9 @@ API_KEY = '4LQORI5MVRWV0UNH'
 def get_top_50_stocks():
     """Get top 50 US stocks by market cap"""
     top_50_stocks = [
+
         'MSFT' #, 'AMZN', 'META', 'NVO', 'LLY'
+
      
     ]
     return top_50_stocks
