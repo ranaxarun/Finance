@@ -17,7 +17,7 @@ def get_top_100_stocks():
         'BA', 'MMM', 'MDT', 'GE', 'UNP', 'PLD', 'DE', 'BLK', 'ELV', 'LMT',
         'AMT', 'BKNG', 'SCHW', 'CVS', 'MO', 'ADI', 'C', 'GILD', 'MDLZ', 'REGN',
         'CI', 'PNC', 'DUK', 'SO', 'MMC', 'TJX', 'ZTS', 'BDX', 'APD', 'NEE',
-        'TMUS', 'CL', 'FIS', 'ICE', 'ITW', 'PYPL', 'TGT', 'USB', 'BSX', 'EOG'
+        'TMUS', 'CL', 'FIS', 'ICE', 'ITW', 'PYPL', 'TGT', 'USB', 'BSX', 'EOG','NVO'
     ]
     return top_100_stocks
 
