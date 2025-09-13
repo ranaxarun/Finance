@@ -11,7 +11,7 @@ def get_top_50_stocks():
     """Get top 50 US stocks by market cap"""
     top_50_stocks = [
         'MSFT', 'AMZN', 'META', 'NVO', 'LLY'
-       # ,'AVGO', 'TSLA', 'QCOM', 'AMD', 'MU'
+     
     ]
     return top_50_stocks
 
