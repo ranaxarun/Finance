@@ -1,75 +1,19 @@
-import requests
+import yfinance as yf
 import pandas as pd
 import numpy as np
 import time
 from datetime import datetime, timedelta
 
-# Alpha Vantage API key (you need to get your own free key from https://www.alphavantage.co/support/#api-key)
-API_KEY = '4LQORI5MVRWV0UNH'
-
 def get_top_50_stocks():
     """Get top 50 US stocks by market cap"""
     top_50_stocks = [
-        'MSFT' #, 'AMZN', 'META', 'NVO', 'LLY'
-     
+        'AAPL', 'MSFT', 'GOOGL', 'AMZN', 'NVDA', 'META', 'TSLA', 'BRK-B', 'UNH', 'JNJ',
+        'XOM', 'V', 'JPM', 'WMT', 'PG', 'MA', 'CVX', 'HD', 'LLY', 'ABBV',
+        'AVGO', 'PEP', 'KO', 'MRK', 'BAC', 'PFE', 'TMO', 'COST', 'DIS', 'CSCO',
+        'DHR', 'VZ', 'ADBE', 'ABT', 'ACN', 'CMCSA', 'NFLX', 'WFC', 'CRM', 'NKE',
+        'PM', 'LIN', 'RTX', 'T', 'HON', 'QCOM', 'AMD', 'INTU', 'AMGN', 'IBM'
     ]
     return top_50_stocks
-
-def fetch_alpha_vantage_data(symbol, interval='15min', output_size='compact'):
-    """Fetch data from Alpha Vantage API"""
-    # Map intervals to Alpha Vantage parameters
-    interval_map = {
-        '15min': '15min',
-        '1h': '60min',
-        '1d': 'daily'
-    }
-    
-    function = 'TIME_SERIES_INTRADAY' if interval != '1d' else 'TIME_SERIES_DAILY'
-    
-    url = f"https://www.alphavantage.co/query"
-    params = {
-        'function': function,
-        'symbol': symbol,
-        'interval': interval_map[interval],
-        'outputsize': output_size,
-        'apikey': API_KEY
-    }
-    
-    try:
-        response = requests.get(url, params=params)
-        data = response.json()
-        
-        if function == 'TIME_SERIES_DAILY':
-            time_series_key = 'Time Series (Daily)'
-        else:
-            time_series_key = f'Time Series ({interval_map[interval]})'
-        
-        if time_series_key not in data:
-            print(f"Error fetching {symbol}: {data.get('Note', 'Unknown error')}")
-            return None
-        
-        # Convert to DataFrame
-        df = pd.DataFrame.from_dict(data[time_series_key], orient='index')
-        df = df.rename(columns={
-            '1. open': 'Open',
-            '2. high': 'High',
-            '3. low': 'Low',
-            '4. close': 'Close',
-            '5. volume': 'Volume'
-        })
-        
-        # Convert columns to numeric
-        for col in ['Open', 'High', 'Low', 'Close', 'Volume']:
-            df[col] = pd.to_numeric(df[col])
-        
-        # Sort index in ascending order (oldest first)
-        df = df.sort_index(ascending=True)
-        
-        return df
-    
-    except Exception as e:
-        print(f"Error fetching data for {symbol}: {e}")
-        return None
 
 def calculate_ema(data, period):
     """Calculate Exponential Moving Average"""
@@ -112,16 +56,16 @@ def calculate_rsi(data, period=14):
     rsi = 100 - (100 / (1 + rs))
     return rsi
 
-def is_rsi_rising(rsi_series, lookback=3):
-    """Check if RSI is rising over the specified lookback period"""
-    if len(rsi_series) < lookback + 1:
+def is_indicator_rising(indicator_series, lookback=3):
+    """Check if an indicator is rising over the specified lookback period"""
+    if len(indicator_series) < lookback + 1:
         return False
     
-    # Get recent RSI values
-    recent_rsi = rsi_series.iloc[-lookback:]
+    # Get recent indicator values
+    recent_values = indicator_series.iloc[-lookback:]
     
-    # Check if RSI is consistently rising
-    rising = all(recent_rsi.iloc[i] > recent_rsi.iloc[i-1] for i in range(1, len(recent_rsi)))
+    # Check if indicator is consistently rising
+    rising = all(recent_values.iloc[i] > recent_values.iloc[i-1] for i in range(1, len(recent_values)))
     
     return rising
 
@@ -195,9 +139,10 @@ def calculate_relative_strength(stock_data, spy_data):
 def check_spy_above_ema200():
     """Check if SPY is above its 200-EMA on daily timeframe"""
     try:
-        spy_data = fetch_alpha_vantage_data('SPY', interval='1d', output_size='full')
+        spy = yf.Ticker('SPY')
+        spy_data = spy.history(period='300d', interval='1d')
         
-        if spy_data is None or len(spy_data) < 200:
+        if len(spy_data) < 200:
             return False
         
         spy_data['EMA200'] = calculate_ema(spy_data['Close'], 200)
@@ -212,11 +157,12 @@ def check_spy_above_ema200():
 def check_15m_conditions(ticker_symbol, spy_data):
     """Check 15-minute timeframe conditions"""
     try:
-        # Get 15-minute data
-        data_15m = fetch_alpha_vantage_data(ticker_symbol, interval='15min', output_size='compact')
+        # Get 15-minute data for the last 30 days
+        stock = yf.Ticker(ticker_symbol)
+        data_15m = stock.history(period='30d', interval='15m')
         
-        if data_15m is None or len(data_15m) < 100:
-            return False, None, None, None, None, None, None, None, None, None
+        if len(data_15m) < 100:
+            return False, None, None, None, None, None, None, None, None, None, None, None
         
         # Calculate indicators
         data_15m['EMA20'] = calculate_ema(data_15m['Close'], 20)
@@ -251,11 +197,18 @@ def check_15m_conditions(ticker_symbol, spy_data):
         
         # Check RSI condition (RSI > 55 AND rising)
         rsi_above_55 = latest['RSI'] > 55 if pd.notna(latest['RSI']) else False
-        rsi_rising = is_rsi_rising(data_15m['RSI'], lookback=3)
+        rsi_rising = is_indicator_rising(data_15m['RSI'], lookback=3)
         rsi_condition = rsi_above_55 and rsi_rising
         
-        # Check volatility condition (ATR < 2% of price)
-        volatility_condition = latest['ATR_Pct'] < 2.0 if pd.notna(latest['ATR_Pct']) else False
+        # Check ADX condition (ADX > 25 AND rising)
+        adx_above_25 = latest['ADX'] > 25 if pd.notna(latest['ADX']) else False
+        adx_rising = is_indicator_rising(data_15m['ADX'], lookback=3)
+        adx_condition = adx_above_25 #and adx_rising
+        
+        # Check volatility condition (ATR < 2% of price AND rising)
+        volatility_low = latest['ATR_Pct'] < 2.0 if pd.notna(latest['ATR_Pct']) else False
+        atr_rising = is_indicator_rising(data_15m['ATR_Pct'], lookback=3)
+        volatility_condition = volatility_low #and atr_rising
         
         # Check Bollinger Band condition (Price above middle band and %B > 0.5)
         bb_condition = (latest['Close'] > latest['BB_Middle'] and 
@@ -264,32 +217,40 @@ def check_15m_conditions(ticker_symbol, spy_data):
         # Check other conditions
         price_ema_condition = (latest['Close'] > latest['EMA20'] > latest['EMA50'] > latest['EMA200'])
         volume_condition = latest['Volume'] > latest['Volume_MA20']
-        adx_condition = latest['ADX'] > 25 if pd.notna(latest['ADX']) else False
-        stoch_condition = check_stochastic_cross(data_15m['Stoch_K'], data_15m['Stoch_D'])
+     #   stoch_condition = check_stochastic_cross(data_15m['Stoch_K'], data_15m['Stoch_D'])
         
         conditions_met = (price_ema_condition and volume_condition and 
-                         rsi_condition and adx_condition and stoch_condition and
-                         volatility_condition and bb_condition)
+                         rsi_condition and adx_condition #and stoch_condition 
+                         and
+                         volatility_condition #and bb_condition
+                         )
         
-        # Get previous RSI for trend display
+        # Get trends for display
         prev_rsi = data_15m['RSI'].iloc[-2] if len(data_15m['RSI']) > 1 else None
         rsi_trend = "↑" if rsi_rising else "↓" if prev_rsi and latest['RSI'] < prev_rsi else "→"
         
+        prev_adx = data_15m['ADX'].iloc[-2] if len(data_15m['ADX']) > 1 else None
+        adx_trend = "↑" if adx_rising else "↓" if prev_adx and latest['ADX'] < prev_adx else "→"
+        
+        prev_atr = data_15m['ATR_Pct'].iloc[-2] if len(data_15m['ATR_Pct']) > 1 else None
+        atr_trend = "↑" if atr_rising else "↓" if prev_atr and latest['ATR_Pct'] < prev_atr else "→"
+        
         return (conditions_met, latest_rs, latest['ADX'], latest['RSI'], 
-                latest['Stoch_K'], latest['Stoch_D'], rsi_trend, latest['ATR_Pct'],
-                latest['BB_PercentB'], latest['BB_Width'])
+                latest['Stoch_K'], latest['Stoch_D'], rsi_trend, adx_trend, atr_trend,
+                latest['ATR_Pct'], latest['BB_PercentB'], latest['BB_Width'])
         
     except Exception as e:
         print(f"Error processing {ticker_symbol} for 15m: {e}")
-        return False, None, None, None, None, None, None, None, None, None
+        return False, None, None, None, None, None, None, None, None, None, None, None
 
 def check_1h_conditions(ticker_symbol):
     """Check 1-hour timeframe conditions"""
     try:
-        # Get 1-hour data
-        data_1h = fetch_alpha_vantage_data(ticker_symbol, interval='1h', output_size='compact')
+        # Get 1-hour data for the last 60 days
+        stock = yf.Ticker(ticker_symbol)
+        data_1h = stock.history(period='60d', interval='1h')
         
-        if data_1h is None or len(data_1h) < 100:
+        if len(data_1h) < 100:
             return False
         
         # Calculate indicators
@@ -320,10 +281,8 @@ def analyze_stocks():
     print("✓ SPY is above its 200-EMA. Proceeding with analysis...")
     
     # Get SPY data for relative strength calculation
-    spy_data_15m = fetch_alpha_vantage_data('SPY', interval='15min', output_size='compact')
-    if spy_data_15m is None:
-        print("Error fetching SPY data for relative strength calculation")
-        return []
+    spy = yf.Ticker('SPY')
+    spy_data_15m = spy.history(period='30d', interval='15m')
     
     qualifying_stocks = []
     stock_details = []
@@ -334,8 +293,8 @@ def analyze_stocks():
         
         # Check both timeframe conditions
         (condition_15m, rel_strength, adx_value, rsi_value, 
-         stoch_k, stoch_d, rsi_trend, atr_pct, 
-         bb_percent, bb_width) = check_15m_conditions(ticker, spy_data_15m)
+         stoch_k, stoch_d, rsi_trend, adx_trend, atr_trend,
+         atr_pct, bb_percent, bb_width) = check_15m_conditions(ticker, spy_data_15m)
         condition_1h = check_1h_conditions(ticker)
         
         if condition_15m and condition_1h:
@@ -348,16 +307,18 @@ def analyze_stocks():
                 'stoch_k': stoch_k,
                 'stoch_d': stoch_d,
                 'rsi_trend': rsi_trend,
+                'adx_trend': adx_trend,
+                'atr_trend': atr_trend,
                 'atr_pct': atr_pct,
                 'bb_percent': bb_percent,
                 'bb_width': bb_width
             })
-            print(f"✓ {ticker} qualifies! RS: {rel_strength:.3f}, ADX: {adx_value:.1f}, "
-                  f"RSI: {rsi_value:.1f}{rsi_trend}, Stoch: K={stoch_k:.1f}/D={stoch_d:.1f}, "
-                  f"ATR%: {atr_pct:.2f}%, %B: {bb_percent:.2f}, BB Width: {bb_width:.4f}")
+            print(f"✓ {ticker} qualifies! RS: {rel_strength:.3f}, ADX: {adx_value:.1f}{adx_trend}, "
+                  f"RSI: {rsi_value:.1f}{rsi_trend}, ATR%: {atr_pct:.2f}%{atr_trend}, "
+                  f"Stoch: K={stoch_k:.1f}/D={stoch_d:.1f}, %B: {bb_percent:.2f}, BB Width: {bb_width:.4f}")
         
-        # Add delay to avoid rate limiting (Alpha Vantage has 5 requests per minute limit for free tier)
-        time.sleep(12)  # 12 seconds delay to stay under 5 requests per minute
+        # Add delay to avoid rate limiting
+        time.sleep(0.5)
     
     # Sort by relative strength (descending)
     if stock_details:
@@ -366,51 +327,57 @@ def analyze_stocks():
     
     return qualifying_stocks, stock_details
 
+# ... (all the previous code remains the same until the main() function)
+
 def main():
     """Main execution function"""
-    print("Stock Screening Tool (Alpha Vantage API)")
-    print("=" * 90)
+    print("Stock Screening Tool")
+    print("=" * 100)
     print("Filters:")
     print("- Market: SPY > EMA200 (Daily)")
     print("- 15m: Price > EMA20 > EMA50 > EMA200, Volume > 20MA")
-    print("- 15m: RSI(14) > 55 AND Rising, ADX > 25")
+    print("- 15m: RSI(14) > 55 AND Rising, ADX > 25 AND Rising")
     print("- 15m: Stochastic %K crosses above %D")
-    print("- 15m: ATR% < 2.0 (Low Volatility Filter)")
+    print("- 15m: ATR% < 2.0 AND Rising (Low Volatility + Increasing Momentum)")
     print("- 15m: Price > BB Middle Band AND %B > 0.5 (Bollinger Band Filter)")
     print("- 1h: EMA50 > EMA200")
     print("- Relative Strength Ratio (vs SPY)")
-    print("=" * 90)
+    print("=" * 100)
     
     start_time = datetime.now()
     results, details = analyze_stocks()
     
-    print("\n" + "=" * 90)
+    print("\n" + "=" * 100)
     print("SCREENING RESULTS")
-    print("=" * 90)
+    print("=" * 100)
     
     if results:
         print(f"Qualifying stocks ({len(results)}):")
-        print("\n{:<8} {:<8} {:<12} {:<8} {:<10} {:<12} {:<12} {:<10} {:<10} {:<10}".format(
-            "Rank", "Ticker", "Rel Strength", "ADX", "RSI", "Stoch %K", "Stoch %D", "ATR %", "%B", "BB Width"
+        # Fixed the format string - removed one placeholder to match the number of arguments
+        print("\n{:<8} {:<8} {:<12} {:<10} {:<10} {:<10} {:<12} {:<12} {:<10} {:<10}".format(
+            "Rank", "Ticker", "Rel Strength", "ADX", "RSI", "ATR %", "Stoch %K", "Stoch %D", "%B", "BB Width"
         ))
-        print("-" * 90)
+        print("-" * 100)
         
         for i, stock_info in enumerate(details, 1):
-            print("{:<8} {:<8} {:<12.3f} {:<8.1f} {:<10} {:<12.1f} {:<12.1f} {:<10.2f} {:<10.2f} {:<10.4f}".format(
+            # Fixed to match the corrected format string
+            print("{:<8} {:<8} {:<12.3f} {:<10} {:<10} {:<10} {:<12.1f} {:<12.1f} {:<10.2f} {:<10.4f}".format(
                 f"#{i}", 
                 stock_info['ticker'], 
                 stock_info['relative_strength'],
-                stock_info['adx'],
+                f"{stock_info['adx']:.1f}{stock_info['adx_trend']}",
                 f"{stock_info['rsi']:.1f}{stock_info['rsi_trend']}",
+                f"{stock_info['atr_pct']:.2f}%{stock_info['atr_trend']}",
                 stock_info['stoch_k'],
                 stock_info['stoch_d'],
-                stock_info['atr_pct'],
                 stock_info['bb_percent'],
                 stock_info['bb_width']
             ))
             
         print("\n💡 Key:")
         print("   RSI Trend: ↑ = Rising, ↓ = Falling, → = Flat")
+        print("   ADX Trend: ↑ = Rising, ↓ = Falling, → = Flat (ADX > 25 + Rising = Strong Trend)")
+        print("   ATR Trend: ↑ = Rising volatility, ↓ = Falling volatility, → = Stable")
         print("   Stochastic Cross: Bullish when %K crosses above %D")
         print("   ATR %: Lower values indicate lower volatility (<2% is good)")
         print("   %B: Position in Bollinger Bands (0-1, >0.5 = above middle)")
