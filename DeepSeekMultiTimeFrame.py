@@ -252,7 +252,7 @@ def check_15m_conditions(ticker_symbol):
         # Check volatility condition (ATR < 2% of price AND rising)
         volatility_low = latest['ATR_Pct'] < 2.0 if pd.notna(latest['ATR_Pct']) else False
         atr_rising = is_indicator_rising(data_15m['ATR_Pct'], lookback=3)
-        volatility_condition = volatility_low and atr_rising
+        volatility_condition = volatility_low #and atr_rising
         
         # Check other conditions
         price_ema_condition = (latest['Close'] > latest['EMA20'] > latest['EMA50'] > latest['EMA200'])
