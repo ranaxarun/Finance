@@ -1,0 +1,43 @@
+Ticker,Latest Crossover,Close at Crossover
+BLK,2025-09-12 16:30,"Ticker
+BLK    1127.23999
+Name: 2025-09-12 16:30:00+00:00, dtype: object"
+CNP,2025-09-12 15:30,"Ticker
+CNP    38.400002
+Name: 2025-09-12 15:30:00+00:00, dtype: object"
+COST,2025-09-12 16:30,"Ticker
+COST    963.219971
+Name: 2025-09-12 16:30:00+00:00, dtype: object"
+DLR,2025-09-12 13:30,"Ticker
+DLR    174.824997
+Name: 2025-09-12 13:30:00+00:00, dtype: object"
+DOW,2025-09-12 17:30,"Ticker
+DOW    24.965
+Name: 2025-09-12 17:30:00+00:00, dtype: object"
+EQIX,2025-09-12 16:30,"Ticker
+EQIX    791.210022
+Name: 2025-09-12 16:30:00+00:00, dtype: object"
+ESS,2025-09-12 16:30,"Ticker
+ESS    267.160004
+Name: 2025-09-12 16:30:00+00:00, dtype: object"
+ETN,2025-09-12 16:30,"Ticker
+ETN    366.880005
+Name: 2025-09-12 16:30:00+00:00, dtype: object"
+ETR,2025-09-12 13:30,"Ticker
+ETR    90.260002
+Name: 2025-09-12 13:30:00+00:00, dtype: object"
+GWW,2025-09-12 14:30,"Ticker
+GWW    1010.890015
+Name: 2025-09-12 14:30:00+00:00, dtype: object"
+MCO,2025-09-12 13:30,"Ticker
+MCO    517.570007
+Name: 2025-09-12 13:30:00+00:00, dtype: object"
+NVDA,2025-09-12 17:30,"Ticker
+NVDA    177.470093
+Name: 2025-09-12 17:30:00+00:00, dtype: object"
+ROL,2025-09-12 18:30,"Ticker
+ROL    57.654999
+Name: 2025-09-12 18:30:00+00:00, dtype: object"
+TSCO,2025-09-12 16:30,"Ticker
+TSCO    60.375
+Name: 2025-09-12 16:30:00+00:00, dtype: object"

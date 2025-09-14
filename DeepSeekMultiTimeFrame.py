@@ -4,22 +4,61 @@ import numpy as np
 import time
 from datetime import datetime, timedelta
 
-def get_top_100_stocks():
-    """Get top 100 US stocks by market cap"""
-    top_100_stocks = [
-        'AAPL', 'MSFT', 'GOOGL', 'AMZN', 'NVDA', 'META', 'TSLA', 'BRK-B', 'UNH', 'JNJ',
-        'XOM', 'V', 'JPM', 'WMT', 'PG', 'MA', 'CVX', 'HD', 'LLY', 'ABBV',
-        'AVGO', 'PEP', 'KO', 'MRK', 'BAC', 'PFE', 'TMO', 'COST', 'DIS', 'CSCO',
-        'DHR', 'VZ', 'ADBE', 'ABT', 'ACN', 'CMCSA', 'NFLX', 'WFC', 'CRM', 'NKE',
-        'PM', 'LIN', 'RTX', 'T', 'HON', 'QCOM', 'AMD', 'INTU', 'AMGN', 'IBM',
-        # Additional top 100 stocks
-        'SPGI', 'NOW', 'TXN', 'LOW', 'UPS', 'ORCL', 'CAT', 'AXP', 'SBUX', 'GS',
-        'BA', 'MMM', 'MDT', 'GE', 'UNP', 'PLD', 'DE', 'BLK', 'ELV', 'LMT',
-        'AMT', 'BKNG', 'SCHW', 'CVS', 'MO', 'ADI', 'C', 'GILD', 'MDLZ', 'REGN',
-        'CI', 'PNC', 'DUK', 'SO', 'MMC', 'TJX', 'ZTS', 'BDX', 'APD', 'NEE',
-        'TMUS', 'CL', 'FIS', 'ICE', 'ITW', 'PYPL', 'TGT', 'USB', 'BSX', 'EOG','NVO'
+def get_sp500_stocks():
+    """Get all S&P 500 stocks"""
+    sp500_stocks = [
+        'MMM', 'AOS', 'ABT', 'ABBV', 'ACN', 'ADBE', 'AMD', 'AES', 'AFL', 'A', 
+        'APD', 'AKAM', 'ALK', 'ALB', 'ARE', 'ALGN', 'ALLE', 'LNT', 'ALL', 'GOOGL', 
+        'GOOG', 'MO', 'AMZN', 'AMCR', 'AEE', 'AAL', 'AEP', 'AXP', 'AIG', 'AMT', 
+        'AWK', 'AMP', 'ABC', 'AME', 'AMGN', 'APH', 'ADI', 'ANSS', 'AON', 'APA', 
+        'AAPL', 'AMAT', 'APTV', 'ACGL', 'ANET', 'AJG', 'AIZ', 'T', 'ATO', 'ADSK', 
+        'ADP', 'AZO', 'AVB', 'AVY', 'AXON', 'BKR', 'BALL', 'BAC', 'BBWI', 'BAX', 
+        'BDX', 'WRB', 'BRK-B', 'BBY', 'BIO', 'TECH', 'BIIB', 'BLK', 'BK', 'BA', 
+        'BKNG', 'BWA', 'BXP', 'BSX', 'BMY', 'AVGO', 'BR', 'BRO', 'BF-B', 'CHRW', 
+        'CDNS', 'CZR', 'CPT', 'CPB', 'COF', 'CAH', 'KMX', 'CCL', 'CARR', 'CTLT', 
+        'CAT', 'CBOE', 'CBRE', 'CDW', 'CE', 'CNC', 'CNP', 'CDAY', 'CF', 'CRL', 
+        'SCHW', 'CHTR', 'CVX', 'CMG', 'CB', 'CHD', 'CI', 'CINF', 'CTAS', 'CSCO', 
+        'C', 'CFG', 'CLX', 'CME', 'CMS', 'KO', 'CTSH', 'CL', 'CMCSA', 'CMA', 
+        'CAG', 'COP', 'ED', 'STZ', 'CEG', 'COO', 'CPRT', 'GLW', 'CTVA', 'CSGP', 
+        'COST', 'CTRA', 'CCI', 'CSX', 'CMI', 'CVS', 'DHI', 'DHR', 'DRI', 'DVA', 
+        'DE', 'DAL', 'XRAY', 'DVN', 'DXCM', 'FANG', 'DLR', 'DFS', 'DIS', 'DG', 
+        'DLTR', 'D', 'DPZ', 'DOV', 'DOW', 'DTE', 'DUK', 'DD', 'DXC', 'EMN', 
+        'ETN', 'EBAY', 'ECL', 'EIX', 'EW', 'EA', 'ELV', 'LLY', 'EMR', 'ENPH', 
+        'ETR', 'EOG', 'EPAM', 'EQT', 'EFX', 'EQIX', 'EQR', 'ESS', 'EL', 'ETSY', 
+        'EG', 'EVRG', 'ES', 'EXC', 'EXPE', 'EXPD', 'EXR', 'XOM', 'FFIV', 'FDS', 
+        'FICO', 'FAST', 'FRT', 'FDX', 'FIS', 'FITB', 'FSLR', 'FE', 'FISV', 'FLT', 
+        'FMC', 'F', 'FTNT', 'FTV', 'FOXA', 'FOX', 'BEN', 'FCX', 'GRMN', 'IT', 
+        'GE', 'GNRC', 'GD', 'GIS', 'GM', 'GPC', 'GILD', 'GL', 'GPN', 'GS', 
+        'HAL', 'HIG', 'HAS', 'HCA', 'PEAK', 'HSIC', 'HSY', 'HES', 'HPE', 'HLT', 
+        'HOLX', 'HD', 'HON', 'HRL', 'HST', 'HWM', 'HPQ', 'HUM', 'HBAN', 'HII', 
+        'IBM', 'IEX', 'IDXX', 'ITW', 'ILMN', 'INCY', 'IR', 'PODD', 'INTC', 'ICE', 
+        'IFF', 'IP', 'IPG', 'INTU', 'ISRG', 'IVZ', 'INVH', 'IQV', 'IRM', 'JBHT', 
+        'JBL', 'JKHY', 'J', 'JNJ', 'JCI', 'JPM', 'JNPR', 'K', 'KDP', 'KEY', 
+        'KEYS', 'KMB', 'KIM', 'KMI', 'KLAC', 'KHC', 'KR', 'LHX', 'LH', 'LRCX', 
+        'LW', 'LVS', 'LDOS', 'LEN', 'LNC', 'LIN', 'LYV', 'LKQ', 'LMT', 'L', 
+        'LOW', 'LULU', 'LYB', 'MTB', 'MRO', 'MPC', 'MKTX', 'MAR', 'MMC', 'MLM', 
+        'MAS', 'MA', 'MTCH', 'MKC', 'MCD', 'MCK', 'MDT', 'MRK', 'META', 'MET', 
+        'MTD', 'MGM', 'MCHP', 'MU', 'MSFT', 'MAA', 'MRNA', 'MHK', 'MOH', 'TAP', 
+        'MDLZ', 'MPWR', 'MNST', 'MCO', 'MS', 'MOS', 'MSI', 'MSCI', 'NDAQ', 'NTAP', 
+        'NFLX', 'NWL', 'NEM', 'NWSA', 'NWS', 'NEE', 'NKE', 'NI', 'NDSN', 'NSC', 
+        'NTRS', 'NOC', 'NCLH', 'NRG', 'NUE', 'NVDA', 'NVR', 'NXPI', 'ORLY', 'OXY', 
+        'ODFL', 'OMC', 'ON', 'OKE', 'ORCL', 'OTIS', 'PCAR', 'PKG', 'PARA', 'PH', 
+        'PAYX', 'PAYC', 'PYPL', 'PNR', 'PEP', 'PFE', 'PCG', 'PM', 'PSX', 'PNW', 
+        'PXD', 'PNC', 'POOL', 'PPG', 'PPL', 'PFG', 'PG', 'PGR', 'PLD', 'PRU', 
+        'PEG', 'PTC', 'PSA', 'PHM', 'QRVO', 'PWR', 'QCOM', 'DGX', 'RL', 'RJF', 
+        'RTX', 'O', 'REG', 'REGN', 'RF', 'RSG', 'RMD', 'RVTY', 'RHI', 'ROK', 
+        'ROL', 'ROP', 'ROST', 'RCL', 'SPGI', 'CRM', 'SBAC', 'SLB', 'STX', 'SEE', 
+        'SRE', 'NOW', 'SHW', 'SPG', 'SWKS', 'SJM', 'SNA', 'SEDG', 'SO', 'LUV', 
+        'SWK', 'SBUX', 'STT', 'STLD', 'STE', 'SYK', 'SYF', 'SNPS', 'SYY', 'TMUS', 
+        'TROW', 'TTWO', 'TPR', 'TRGP', 'TGT', 'TEL', 'TDY', 'TFX', 'TER', 'TSLA', 
+        'TXN', 'TXT', 'TMO', 'TJX', 'TSCO', 'TT', 'TDG', 'TRV', 'TRMB', 'TFC', 
+        'TYL', 'TSN', 'USB', 'UDR', 'ULTA', 'UNP', 'UAL', 'UNH', 'UPS', 'URI', 
+        'UHS', 'VLO', 'VTR', 'VRSN', 'VRSK', 'VZ', 'VRTX', 'VFC', 'VTRS', 'VICI', 
+        'V', 'VMC', 'WAB', 'WBA', 'WMT', 'WBD', 'WM', 'WAT', 'WEC', 'WFC', 
+        'WELL', 'WST', 'WDC', 'WRK', 'WY', 'WHR', 'WMB', 'WTW', 'GWW', 'WYNN', 
+        'XEL', 'XYL', 'YUM', 'ZBRA', 'ZBH', 'ZION', 'ZTS'
     ]
-    return top_100_stocks
+    return sp500_stocks
 
 def calculate_ema(data, period):
     """Calculate Exponential Moving Average"""
@@ -181,7 +220,7 @@ def check_15m_conditions(ticker_symbol):
         data_15m = stock.history(period='30d', interval='15m')
         
         if len(data_15m) < 100:
-            return False, None, None, None, None, None, None, None
+            return False, None, None, None, None, None, None
         
         # Calculate indicators
         data_15m['EMA20'] = calculate_ema(data_15m['Close'], 20)
@@ -213,7 +252,7 @@ def check_15m_conditions(ticker_symbol):
         # Check volatility condition (ATR < 2% of price AND rising)
         volatility_low = latest['ATR_Pct'] < 2.0 if pd.notna(latest['ATR_Pct']) else False
         atr_rising = is_indicator_rising(data_15m['ATR_Pct'], lookback=3)
-        volatility_condition = volatility_low #and atr_rising
+        volatility_condition = volatility_low and atr_rising
         
         # Check other conditions
         price_ema_condition = (latest['Close'] > latest['EMA20'] > latest['EMA50'] > latest['EMA200'])
@@ -237,12 +276,12 @@ def check_15m_conditions(ticker_symbol):
         
     except Exception as e:
         print(f"Error processing {ticker_symbol} for 15m: {e}")
-        return False, None, None, None, None, None, None, None
+        return False, None, None, None, None, None, None
 
 def analyze_stocks():
     """Main function to analyze stocks"""
-    print("Fetching top 100 stocks...")
-    stocks = get_top_100_stocks()
+    print("Fetching S&P 500 stocks...")
+    stocks = get_sp500_stocks()
     
     print("Checking SPY condition...")
     spy_condition = check_spy_above_ema200()
@@ -259,7 +298,7 @@ def analyze_stocks():
     qualifying_stocks = []
     stock_details = []
     
-    print("Analyzing stocks...")
+    print(f"Analyzing {len(stocks)} S&P 500 stocks...")
     for i, ticker in enumerate(stocks, 1):
         print(f"Processing {ticker} ({i}/{len(stocks)})...")
         
@@ -285,7 +324,7 @@ def analyze_stocks():
                   f"RSI: {rsi_value:.1f}{rsi_trend}, ATR%: {atr_pct:.2f}%{atr_trend}")
         
         # Add delay to avoid rate limiting
-        time.sleep(0.5)
+        time.sleep(0.3)  # Reduced sleep time for faster processing of many stocks
     
     # Sort by daily relative strength (descending)
     if stock_details:
@@ -296,7 +335,7 @@ def analyze_stocks():
 
 def main():
     """Main execution function"""
-    print("Stock Screening Tool")
+    print("Stock Screening Tool - S&P 500 Analysis")
     print("=" * 100)
     print("Filters:")
     print("- Market: SPY > EMA200 (Daily)")
@@ -345,6 +384,7 @@ def main():
     end_time = datetime.now()
     duration = end_time - start_time
     print(f"\nAnalysis completed in {duration.total_seconds():.2f} seconds")
+    print(f"Analyzed all S&P 500 stocks")
 
 if __name__ == "__main__":
     main()
