@@ -180,7 +180,7 @@ def check_daily_conditions(ticker_symbol, spy_data):
         
         # Check conditions
         ema_condition = latest['EMA50'] > latest['EMA200']
-        rs_condition = latest_rs > 1
+        rs_condition = latest_rs > .8
         
         return (ema_condition and rs_condition), latest_rs
         

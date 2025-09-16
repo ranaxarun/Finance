@@ -61,7 +61,7 @@ end_date = datetime.datetime.today()
 start_date = end_date - datetime.timedelta(days=90)
 
 # Cutoff date (naive datetime) — we’ll align per ticker’s index tz
-cutoff_date = datetime.datetime(2025, 9, 12)
+cutoff_date = datetime.datetime(2025, 9, 15)
 
 results = []
 

@@ -1,43 +1,31 @@
 Ticker,Latest Crossover,Close at Crossover
-BLK,2025-09-12 16:30,"Ticker
-BLK    1127.23999
-Name: 2025-09-12 16:30:00+00:00, dtype: object"
-CNP,2025-09-12 15:30,"Ticker
-CNP    38.400002
-Name: 2025-09-12 15:30:00+00:00, dtype: object"
-COST,2025-09-12 16:30,"Ticker
-COST    963.219971
-Name: 2025-09-12 16:30:00+00:00, dtype: object"
-DLR,2025-09-12 13:30,"Ticker
-DLR    174.824997
-Name: 2025-09-12 13:30:00+00:00, dtype: object"
-DOW,2025-09-12 17:30,"Ticker
-DOW    24.965
-Name: 2025-09-12 17:30:00+00:00, dtype: object"
-EQIX,2025-09-12 16:30,"Ticker
-EQIX    791.210022
-Name: 2025-09-12 16:30:00+00:00, dtype: object"
-ESS,2025-09-12 16:30,"Ticker
-ESS    267.160004
-Name: 2025-09-12 16:30:00+00:00, dtype: object"
-ETN,2025-09-12 16:30,"Ticker
-ETN    366.880005
-Name: 2025-09-12 16:30:00+00:00, dtype: object"
-ETR,2025-09-12 13:30,"Ticker
-ETR    90.260002
-Name: 2025-09-12 13:30:00+00:00, dtype: object"
-GWW,2025-09-12 14:30,"Ticker
-GWW    1010.890015
-Name: 2025-09-12 14:30:00+00:00, dtype: object"
-MCO,2025-09-12 13:30,"Ticker
-MCO    517.570007
-Name: 2025-09-12 13:30:00+00:00, dtype: object"
-NVDA,2025-09-12 17:30,"Ticker
-NVDA    177.470093
-Name: 2025-09-12 17:30:00+00:00, dtype: object"
-ROL,2025-09-12 18:30,"Ticker
-ROL    57.654999
-Name: 2025-09-12 18:30:00+00:00, dtype: object"
-TSCO,2025-09-12 16:30,"Ticker
-TSCO    60.375
-Name: 2025-09-12 16:30:00+00:00, dtype: object"
+AEE,2025-09-15 18:30,"Ticker
+AEE    100.559998
+Name: 2025-09-15 18:30:00+00:00, dtype: object"
+APD,2025-09-15 13:30,"Ticker
+APD    296.140015
+Name: 2025-09-15 13:30:00+00:00, dtype: object"
+CEG,2025-09-15 18:30,"Ticker
+CEG    330.820007
+Name: 2025-09-15 18:30:00+00:00, dtype: object"
+D,2025-09-15 19:30,"Ticker
+D    60.599998
+Name: 2025-09-15 19:30:00+00:00, dtype: object"
+EMR,2025-09-15 14:30,"Ticker
+EMR    135.505005
+Name: 2025-09-15 14:30:00+00:00, dtype: object"
+ES,2025-09-15 19:30,"Ticker
+ES    65.529999
+Name: 2025-09-15 19:30:00+00:00, dtype: object"
+MOS,2025-09-15 19:30,"Ticker
+MOS    34.049999
+Name: 2025-09-15 19:30:00+00:00, dtype: object"
+NWSA,2025-09-15 19:30,"Ticker
+NWSA    29.91
+Name: 2025-09-15 19:30:00+00:00, dtype: object"
+OTIS,2025-09-15 19:30,"Ticker
+OTIS    89.629997
+Name: 2025-09-15 19:30:00+00:00, dtype: object"
+WAT,2025-09-15 19:30,"Ticker
+WAT    299.600006
+Name: 2025-09-15 19:30:00+00:00, dtype: object"
