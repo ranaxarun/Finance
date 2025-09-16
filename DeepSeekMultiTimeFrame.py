@@ -24,7 +24,7 @@ def get_sp500_stocks():
         'DE', 'DAL', 'XRAY', 'DVN', 'DXCM', 'FANG', 'DLR', 'DFS', 'DIS', 'DG', 
         'DLTR', 'D', 'DPZ', 'DOV', 'DOW', 'DTE', 'DUK', 'DD', 'DXC', 'EMN', 
         'ETN', 'EBAY', 'ECL', 'EIX', 'EW', 'EA', 'ELV', 'LLY', 'EMR', 'ENPH', 
-        'ETR', 'EOG', 'EPAM', 'EQT', 'EFX', 'EQIX', 'EQR', 'ESS', 'EL', 'ETSY', 
+        'ETR', 'EOG', 'EPAM', 'EQT', 'EFX', 'EQIX', 'EQR', 'ESS', 'EL', 'ETYS', 
         'EG', 'EVRG', 'ES', 'EXC', 'EXPE', 'EXPD', 'EXR', 'XOM', 'FFIV', 'FDS', 
         'FICO', 'FAST', 'FRT', 'FDX', 'FIS', 'FITB', 'FSLR', 'FE', 'FISV', 'FLT', 
         'FMC', 'F', 'FTNT', 'FTV', 'FOXA', 'FOX', 'BEN', 'FCX', 'GRMN', 'IT', 
@@ -165,7 +165,7 @@ def check_daily_conditions(ticker_symbol, spy_data):
         data_daily = stock.history(period='300d', interval='1d')
         
         if len(data_daily) < 200:
-            return False, 0
+            return False, 0, 0
         
         # Calculate EMAs
         data_daily['EMA50'] = calculate_ema(data_daily['Close'], 50)
@@ -177,16 +177,17 @@ def check_daily_conditions(ticker_symbol, spy_data):
         # Get latest values
         latest = data_daily.iloc[-1]
         latest_rs = relative_strength.iloc[-1] if not relative_strength.empty else 0
+        current_price = latest['Close']
         
         # Check conditions
         ema_condition = latest['EMA50'] > latest['EMA200']
-        rs_condition = latest_rs > .8
+        rs_condition = latest_rs > 1
         
-        return (ema_condition and rs_condition), latest_rs
+        return (ema_condition and rs_condition), latest_rs, current_price
         
     except Exception as e:
         print(f"Error processing {ticker_symbol} for daily: {e}")
-        return False, 0
+        return False, 0, 0
 
 def check_1h_conditions(ticker_symbol):
     """Check 1-hour timeframe conditions"""
@@ -220,7 +221,7 @@ def check_15m_conditions(ticker_symbol):
         data_15m = stock.history(period='30d', interval='15m')
         
         if len(data_15m) < 100:
-            return False, None, None, None, None, None, None
+            return False, None, None, None, None, None, None, None
         
         # Calculate indicators
         data_15m['EMA20'] = calculate_ema(data_15m['Close'], 20)
@@ -238,6 +239,7 @@ def check_15m_conditions(ticker_symbol):
         
         # Get latest values
         latest = data_15m.iloc[-1]
+        current_price = latest['Close']
         
         # Check RSI condition (RSI > 55 AND rising)
         rsi_above_55 = latest['RSI'] > 55 if pd.notna(latest['RSI']) else False
@@ -252,7 +254,7 @@ def check_15m_conditions(ticker_symbol):
         # Check volatility condition (ATR < 2% of price AND rising)
         volatility_low = latest['ATR_Pct'] < 2.0 if pd.notna(latest['ATR_Pct']) else False
         atr_rising = is_indicator_rising(data_15m['ATR_Pct'], lookback=3)
-        volatility_condition = volatility_low #and atr_rising
+        volatility_condition = volatility_low and atr_rising
         
         # Check other conditions
         price_ema_condition = (latest['Close'] > latest['EMA20'] > latest['EMA50'] > latest['EMA200'])
@@ -272,11 +274,11 @@ def check_15m_conditions(ticker_symbol):
         atr_trend = "↑" if atr_rising else "↓" if prev_atr and latest['ATR_Pct'] < prev_atr else "→"
         
         return (conditions_met, latest['ADX'], latest['RSI'], rsi_trend, 
-                adx_trend, atr_trend, latest['ATR_Pct'])
+                adx_trend, atr_trend, latest['ATR_Pct'], current_price)
         
     except Exception as e:
         print(f"Error processing {ticker_symbol} for 15m: {e}")
-        return False, None, None, None, None, None, None
+        return False, None, None, None, None, None, None, None
 
 def analyze_stocks():
     """Main function to analyze stocks"""
@@ -303,16 +305,17 @@ def analyze_stocks():
         print(f"Processing {ticker} ({i}/{len(stocks)})...")
         
         # Check all timeframe conditions
-        daily_condition, daily_rs = check_daily_conditions(ticker, spy_data_daily)
+        daily_condition, daily_rs, daily_price = check_daily_conditions(ticker, spy_data_daily)
         condition_1h = check_1h_conditions(ticker)
         (condition_15m, adx_value, rsi_value, rsi_trend, 
-         adx_trend, atr_trend, atr_pct) = check_15m_conditions(ticker)
+         adx_trend, atr_trend, atr_pct, current_price) = check_15m_conditions(ticker)
         
         if daily_condition and condition_1h and condition_15m:
             qualifying_stocks.append(ticker)
             stock_details.append({
                 'ticker': ticker,
                 'daily_rs': daily_rs,
+                'price': current_price,
                 'adx': adx_value,
                 'rsi': rsi_value,
                 'rsi_trend': rsi_trend,
@@ -320,11 +323,11 @@ def analyze_stocks():
                 'atr_trend': atr_trend,
                 'atr_pct': atr_pct
             })
-            print(f"✓ {ticker} qualifies! Daily RS: {daily_rs:.3f}, ADX: {adx_value:.1f}{adx_trend}, "
+            print(f"✓ {ticker} qualifies! Price: ${current_price:.2f}, Daily RS: {daily_rs:.3f}, ADX: {adx_value:.1f}{adx_trend}, "
                   f"RSI: {rsi_value:.1f}{rsi_trend}, ATR%: {atr_pct:.2f}%{atr_trend}")
         
         # Add delay to avoid rate limiting
-        time.sleep(0.3)  # Reduced sleep time for faster processing of many stocks
+        time.sleep(0.3)
     
     # Sort by daily relative strength (descending)
     if stock_details:
@@ -355,16 +358,17 @@ def main():
     
     if results:
         print(f"Qualifying stocks ({len(results)}):")
-        print("\n{:<8} {:<8} {:<12} {:<10} {:<10} {:<10} {:<10}".format(
-            "Rank", "Ticker", "Daily RS", "ADX", "RSI", "ATR %", "Trends"
+        print("\n{:<8} {:<8} {:<10} {:<12} {:<10} {:<10} {:<10} {:<10}".format(
+            "Rank", "Ticker", "Price", "Daily RS", "ADX", "RSI", "ATR %", "Trends"
         ))
         print("-" * 100)
         
         for i, stock_info in enumerate(details, 1):
             trends = f"RSI{stock_info['rsi_trend']} ADX{stock_info['adx_trend']} ATR{stock_info['atr_trend']}"
-            print("{:<8} {:<8} {:<12.3f} {:<10} {:<10} {:<10} {:<10}".format(
+            print("{:<8} {:<8} {:<10.2f} {:<12.3f} {:<10} {:<10} {:<10} {:<10}".format(
                 f"#{i}", 
                 stock_info['ticker'], 
+                stock_info['price'],
                 stock_info['daily_rs'],
                 f"{stock_info['adx']:.1f}{stock_info['adx_trend']}",
                 f"{stock_info['rsi']:.1f}{stock_info['rsi_trend']}",
